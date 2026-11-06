@@ -264,7 +264,6 @@ class KMeansSMOTE(BaseSMOTE):
                 cluster_sparsities.append(self._find_cluster_sparsity(X_cluster_class))
 
             cluster_sparsities = np.array(cluster_sparsities)
-            cluster_weights = cluster_sparsities / cluster_sparsities.sum()
 
             if not valid_clusters:
                 raise RuntimeError(
@@ -273,6 +272,28 @@ class KMeansSMOTE(BaseSMOTE):
                     "cluster_balance_threshold or increasing the number of "
                     "clusters."
                 )
+
+            sparsity_sum = cluster_sparsities.sum()
+            if sparsity_sum > 0:
+                cluster_weights = cluster_sparsities / sparsity_sum
+            else:
+                # All the valid clusters are made of identical samples (e.g.
+                # duplicated rows or discrete features), so no cluster is
+                # denser than another one: share the samples evenly.
+                cluster_weights = np.full(
+                    len(valid_clusters), 1.0 / len(valid_clusters)
+                )
+
+            # Allocate the samples to generate among the valid clusters. Taking
+            # the ceiling of each cluster share independently can generate more
+            # samples than requested, so use the largest remainder method to
+            # generate exactly `n_samples`.
+            cluster_n_samples = np.floor(n_samples * cluster_weights).astype(int)
+            n_remaining = n_samples - cluster_n_samples.sum()
+            if n_remaining > 0:
+                remainders = n_samples * cluster_weights - cluster_n_samples
+                largest_remainders = np.argsort(-remainders, kind="stable")
+                cluster_n_samples[largest_remainders[:n_remaining]] += 1
 
             for valid_cluster_idx, valid_cluster in enumerate(valid_clusters):
                 X_cluster = _safe_indexing(X, valid_cluster)
@@ -287,17 +308,13 @@ class KMeansSMOTE(BaseSMOTE):
                     :, 1:
                 ]
 
-                cluster_n_samples = int(
-                    math.ceil(n_samples * cluster_weights[valid_cluster_idx])
-                )
-
                 X_new, y_new = self._make_samples(
                     X_cluster_class,
                     y.dtype,
                     class_sample,
                     X_cluster_class,
                     nns,
-                    cluster_n_samples,
+                    int(cluster_n_samples[valid_cluster_idx]),
                     1.0,
                 )
 

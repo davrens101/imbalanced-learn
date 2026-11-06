@@ -106,3 +106,62 @@ def test_sample_kmeans_density_estimation(density_exponent, cluster_balance_thre
         cluster_balance_threshold=cluster_balance_threshold,
     )
     smote.fit_resample(X, y)
+
+
+def test_sample_kmeans_identical_points_in_valid_clusters():
+    """Check that clusters made of identical samples are handled.
+
+    Non-regression test for:
+    https://github.com/scikit-learn-contrib/imbalanced-learn/issues/1186
+    """
+    X = np.array([[1.0, 1.0]] * 4 + [[2.0, 2.0]] * 4 + [[3.0, 3.0]] * 4)
+    y = np.array([1] * 4 + [0] * 8)
+
+    smote = KMeansSMOTE(
+        kmeans_estimator=KMeans(n_clusters=2, random_state=42),
+        random_state=42,
+        cluster_balance_threshold=0.1,
+    )
+    X_resampled, y_resampled = smote.fit_resample(X, y)
+
+    assert X_resampled.shape == (16, 2)
+    assert y_resampled.shape == (16,)
+    # the minority class has been balanced with the majority class
+    assert np.bincount(y_resampled)[1] == 8
+
+
+def test_sample_kmeans_exact_number_of_samples():
+    """Check that exactly `n_samples` samples are generated.
+
+    Non-regression test for:
+    https://github.com/scikit-learn-contrib/imbalanced-learn/issues/1186
+    """
+    X = np.array(
+        [
+            [1.0, 1.0],
+            [1.1, 1.1],
+            [0.9, 0.9],
+            [1.0, 0.9],
+            [5.0, 5.0],
+            [5.1, 5.1],
+            [4.9, 4.9],
+            [5.0, 4.9],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [4.0, 4.0],
+            [6.0, 6.0],
+            [7.0, 7.0],
+        ]
+    )
+    y = np.array([1] * 8 + [0] * 5)
+
+    smote = KMeansSMOTE(
+        sampling_strategy={1: 11},
+        kmeans_estimator=KMeans(n_clusters=2, random_state=42),
+        random_state=42,
+        cluster_balance_threshold=0.1,
+    )
+    X_resampled, y_resampled = smote.fit_resample(X, y)
+
+    assert X_resampled.shape == (16, 2)
+    assert np.bincount(y_resampled)[1] == 11

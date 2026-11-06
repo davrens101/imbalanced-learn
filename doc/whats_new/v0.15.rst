@@ -11,6 +11,13 @@ Changelog
 Bug fixes
 .........
 
+- Fix :class:`~imblearn.over_sampling.KMeansSMOTE` when the valid clusters only
+  contain identical samples: the cluster weights were ``NaN`` and the fit
+  raised a ``ValueError``. The samples are now distributed evenly in this case.
+  The number of samples generated across the valid clusters also matches
+  `sampling_strategy` exactly instead of being systematically rounded up.
+  :issue:`1186` by :user:`Davis <davrens101>`.
+
 Enhancements
 ............
 
